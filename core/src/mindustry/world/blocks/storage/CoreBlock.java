@@ -29,9 +29,11 @@ public class CoreBlock extends StorageBlock{
     //hacky way to pass item modules between methods
     private static ItemModule nextItems;
 
-    public @Load(value = "@-thruster1", fallback = "clear-effect") TextureRegion thruster1; //top right
-    public @Load(value = "@-thruster2", fallback = "clear-effect") TextureRegion thruster2; //bot left
-    public float thrusterLength = 14f/4f;
+    public @Load(value = "@-thruster1", fallback = "clear-effect")
+    TextureRegion thruster1; //top right
+    public @Load(value = "@-thruster2", fallback = "clear-effect")
+    TextureRegion thruster2; //bot left
+    public float thrusterLength = 14f / 4f;
 
     public UnitType unitType = UnitTypes.alpha;
 
@@ -64,6 +66,7 @@ public class CoreBlock extends StorageBlock{
         CoreBlock block = (CoreBlock)tile.block();
         Fx.spawn.at(entity);
 
+        player.lastSpawn(entity);
         player.set(entity);
 
         if(!net.client()){
@@ -93,9 +96,9 @@ public class CoreBlock extends StorageBlock{
         super.setBars();
 
         bars.add("capacity", (CoreBuild e) -> new Bar(
-            () -> Core.bundle.format("bar.capacity", UI.formatAmount(e.storageCapacity)),
-            () -> Pal.items,
-            () -> e.items.total() / ((float)e.storageCapacity * content.items().count(i -> i.unlockedNow()))
+        () -> Core.bundle.format("bar.capacity", UI.formatAmount(e.storageCapacity)),
+        () -> Pal.items,
+        () -> e.items.total() / ((float)e.storageCapacity * content.items().count(i -> i.unlockedNow()))
         ));
     }
 
@@ -168,9 +171,9 @@ public class CoreBlock extends StorageBlock{
         if(!canPlaceOn(world.tile(x, y), player.team(), rotation)){
 
             drawPlaceText(Core.bundle.get(
-                (player.team().core() != null && player.team().core().items.has(requirements, state.rules.buildCostMultiplier)) || state.rules.infiniteResources ?
-                "bar.corereq" :
-                "bar.noresources"
+            (player.team().core() != null && player.team().core().items.has(requirements, state.rules.buildCostMultiplier)) || state.rules.infiniteResources ?
+            "bar.corereq" :
+            "bar.noresources"
             ), x, y, valid);
         }
     }
@@ -202,7 +205,7 @@ public class CoreBlock extends StorageBlock{
         }
 
         public void drawThrusters(float frame){
-            float length = thrusterLength * (frame - 1f) - 1f/4f;
+            float length = thrusterLength * (frame - 1f) - 1f / 4f;
             for(int i = 0; i < 4; i++){
                 var reg = i >= 2 ? thruster2 : thruster1;
                 float dx = Geometry.d4x[i] * length, dy = Geometry.d4y[i] * length;
@@ -270,7 +273,7 @@ public class CoreBlock extends StorageBlock{
         @Override
         public void updateTile(){
             iframes -= Time.delta;
-            thrusterTime -= Time.delta/90f;
+            thrusterTime -= Time.delta / 90f;
         }
 
         @Override
@@ -335,11 +338,29 @@ public class CoreBlock extends StorageBlock{
             return state.rules.coreIncinerates ? storageCapacity * 2 : storageCapacity;
         }
 
+        private static final ObjectSet<CoreBuild> tmp_linkedCores = new ObjectSet<>();
+        private static final Seq<CoreBuild> tmp_queue = new Seq<>();
+
         @Override
         public void onProximityUpdate(){
             super.onProximityUpdate();
 
-            for(Building other : state.teams.cores(team)){
+            tmp_linkedCores.clear();
+            tmp_queue.clear();
+            if(state.rules.coreIsolation){
+                tmp_queue.add(this);
+                CoreBuild b;
+                while((b = tmp_queue.pop()) != null){
+                    b.proximity.each(it -> {
+                        if(it instanceof CoreBuild build && it.team() == team && tmp_linkedCores.add(build))
+                            tmp_queue.add(build);
+                    });
+                }
+            }else{
+                tmp_linkedCores.addAll(team.cores());
+            }
+
+            for(Building other : tmp_linkedCores){
                 if(other.tile() != tile){
                     this.items = other.items;
                 }
@@ -347,12 +368,12 @@ public class CoreBlock extends StorageBlock{
             state.teams.registerCore(this);
 
             storageCapacity = itemCapacity + proximity().sum(e -> owns(e) ? e.block.itemCapacity : 0);
-            proximity.each(e -> owns(e), t -> {
+            proximity.each(this::owns, t -> {
                 t.items = items;
                 ((StorageBuild)t).linkedCore = this;
             });
 
-            for(Building other : state.teams.cores(team)){
+            for(Building other : tmp_linkedCores){
                 if(other.tile() == tile) continue;
                 storageCapacity += other.block.itemCapacity + other.proximity().sum(e -> owns(other, e) ? e.block.itemCapacity : 0);
             }
@@ -364,7 +385,7 @@ public class CoreBlock extends StorageBlock{
                 }
             }
 
-            for(CoreBuild other : state.teams.cores(team)){
+            for(CoreBuild other : tmp_linkedCores){
                 other.storageCapacity = storageCapacity;
             }
         }

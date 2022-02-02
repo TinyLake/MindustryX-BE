@@ -120,6 +120,9 @@ public class Rules{
     public @Nullable String modeName;
     /** Whether cores incinerate items when full, just like in the campaign. */
     public boolean coreIncinerates = false;
+    /** Whether isolate core resource, each core has own items.
+     * Player uses the items of the core spawned from, or nearest if not found. */
+    public boolean coreIsolation = false;
     /** If false, borders fade out into darkness. Only use with custom backgrounds!*/
     public boolean borderDarkness = true;
     /** special tags for additional info. */

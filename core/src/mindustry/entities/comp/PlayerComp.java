@@ -46,6 +46,7 @@ abstract class PlayerComp implements UnitController, Entityc, Syncc, Timerc, Dra
     transient private Unit lastReadUnit = Nulls.unit;
     transient private int wrongReadUnits;
     transient @Nullable Unit justSwitchFrom, justSwitchTo;
+    transient @Nullable CoreBuild lastSpawn;
 
     public boolean isBuilder(){
         return unit.canBuild();
@@ -56,12 +57,14 @@ abstract class PlayerComp implements UnitController, Entityc, Syncc, Timerc, Dra
     }
 
     public @Nullable CoreBuild core(){
-        return team.core();
+        return lastSpawn != null ? lastSpawn : team.core();
     }
 
     /** @return largest/closest core, with largest cores getting priority */
     @Nullable
     public CoreBuild bestCore(){
+        if(lastSpawn != null && lastSpawn.isValid())
+            return lastSpawn;
         return team.cores().min(Structs.comps(Structs.comparingInt(c -> -c.block.size), Structs.comparingFloat(c -> c.dst(x, y))));
     }
 
