@@ -174,7 +174,7 @@ public class TypeIO{
 
     //this is irrelevant.
     static final WeaponMount[] noMounts = {};
-    
+
     public static WeaponMount[] readMounts(Reads read){
         read.skip(read.b() * (1 + 4 + 4));
 
@@ -248,7 +248,7 @@ public class TypeIO{
             write.s(request.block.id);
             write.b((byte)request.rotation);
             write.b(1); //always has config
-            writeObject(write, request.config);
+            writeObject(write, net.server() ? null : request.config);
         }
     }
 
