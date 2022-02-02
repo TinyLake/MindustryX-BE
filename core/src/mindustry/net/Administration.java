@@ -12,7 +12,7 @@ import mindustry.gen.*;
 import mindustry.type.*;
 import mindustry.world.*;
 
-import static mindustry.Vars.*;
+import static mindustry.Vars.headless;
 import static mindustry.game.EventType.*;
 
 public class Administration{
@@ -478,6 +478,7 @@ public class Administration{
         autosave("Whether the periodically save the map when playing.", false),
         autosaveAmount("The maximum amount of autosaves. Older ones get replaced.", 10),
         autosaveSpacing("Spacing between autosaves in seconds.", 60 * 5),
+        ipForward("Support ip forward behind proxy(don't enable if no proxy).", false),
         debug("Enable debug logging", false, () -> Log.level = debug() ? LogLevel.debug : LogLevel.info);
 
         public static final Config[] all = values();

@@ -10,6 +10,7 @@ import arc.util.*;
 import arc.util.Log.*;
 import arc.util.async.*;
 import arc.util.io.*;
+import mindustry.net.Administration.*;
 import mindustry.net.Net.*;
 import mindustry.net.Packets.*;
 import net.jpountz.lz4.*;
@@ -92,7 +93,10 @@ public class ArcNetProvider implements NetProvider{
             @Override
             public void connected(Connection connection){
                 String ip = connection.getRemoteAddressTCP().getAddress().getHostAddress();
-
+                if(Config.ipForward.bool()){
+                    Log.debug("&bWait For IpForward: @", ip);
+                    return;
+                }
                 ArcConnection kn = new ArcConnection(ip, connection);
 
                 Connect c = new Connect();
@@ -121,6 +125,12 @@ public class ArcNetProvider implements NetProvider{
             @Override
             public void received(Connection connection, Object object){
                 ArcConnection k = getByArcID(connection.getID());
+                if(k == null && object instanceof Connect c && Config.ipForward.bool()){
+                    ArcConnection kn = new ArcConnection(c.addressTCP, connection);
+                    Log.debug("&bReceived connection: @", c.addressTCP);
+                    connections.add(kn);
+                    Core.app.post(() -> net.handleServerReceived(kn, c));
+                }
                 if(!(object instanceof Packet pack) || k == null) return;
 
                 Core.app.post(() -> {

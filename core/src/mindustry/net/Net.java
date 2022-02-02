@@ -46,6 +46,8 @@ public class Net{
 
         //register generated packet classes
         Call.registerPackets();
+
+        registerPacket(Connect::new);//last for compatibility
     }
 
     /** Registers a new packet type for serialization. */

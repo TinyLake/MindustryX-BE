@@ -51,6 +51,12 @@ public class Packets{
         public int getPriority(){
             return priorityHigh;
         }
+
+        //use in ipForward
+        @Override
+        public void read(Reads buffer){
+            addressTCP = buffer.str();
+        }
     }
 
     /** Generic client disconnection event. */
@@ -145,7 +151,7 @@ public class Packets{
             name = TypeIO.readString(buffer);
             locale = TypeIO.readString(buffer);
             usid = TypeIO.readString(buffer);
-            byte[] idbytes =  buffer.b(16);
+            byte[] idbytes = buffer.b(16);
             uuid = new String(Base64Coder.encode(idbytes));
             mobile = buffer.b() == 1;
             color = buffer.i();
