@@ -16,7 +16,6 @@ buildscript{
     }
 
     dependencies{
-        classpath "com.mobidevelop.robovm:robovm-gradle-plugin:2.3.14"
         classpath "com.github.Anuken.Arc:packer:$arcHash"
         classpath "com.github.Anuken.Arc:arc-core:$arcHash"
     }
@@ -102,16 +101,6 @@ allprojects{
 
         getPackage = {
             return project.ext.mainClassName.substring(0, project.ext.mainClassName.indexOf("desktop") - 1)
-        }
-
-        findSdkDir = {
-            //null because IntelliJ doesn't get env variables
-            def v = System.getenv("ANDROID_HOME")
-            if(v != null) return v
-            //rootDir is null here, amazing. brilliant.
-            def file = new File(rootDir, "local.properties")
-            def props = new Properties().with{p -> p.load(file.newReader()); return p }
-            return props.get("sdk.dir")
         }
 
         generateLocales = {
@@ -236,61 +225,6 @@ configure(subprojects - project(":annotations")){
     }
 }
 
-project(":desktop"){
-    apply plugin: "java"
-
-    compileJava.options.fork = true
-
-    dependencies{
-        implementation project(":core")
-        implementation arcModule("extensions:discord")
-        implementation arcModule("natives:natives-desktop")
-        implementation arcModule("natives:natives-freetype-desktop")
-
-        if(debugged()) implementation project(":debug")
-
-        implementation "com.github.Anuken:steamworks4j:$steamworksVersion"
-
-        implementation arcModule("backends:backend-sdl")
-    }
-}
-
-project(":ios"){
-    apply plugin: "java"
-    apply plugin: "robovm"
-
-    task incrementConfig{
-        def vfile = file('robovm.properties')
-        def bversion = getBuildVersion()
-        def props = new Properties()
-        if(vfile.exists()){
-            props.load(new FileInputStream(vfile))
-        }else{
-            props['app.id'] = 'io.anuke.mindustry'
-            props['app.version'] = '7.0'
-            props['app.mainclass'] = 'mindustry.IOSLauncher'
-            props['app.executable'] = 'IOSLauncher'
-            props['app.name'] = 'Mindustry'
-        }
-        
-        props['app.build'] = (!props.containsKey("app.build") ? 40 : props['app.build'].toInteger() + 1) + ""
-        if(bversion != "custom build"){
-            props['app.version'] = versionNumber + "." + bversion + (bversion.contains(".") ? "" : ".0")
-        }
-        props.store(vfile.newWriter(), null)
-    }
-
-    dependencies{
-        implementation project(":core")
-
-        implementation arcModule("natives:natives-ios")
-        implementation arcModule("natives:natives-freetype-ios")
-        implementation arcModule("backends:backend-robovm")
-
-        compileOnly project(":annotations")
-    }
-}
-
 project(":core"){
     apply plugin: "java-library"
     apply plugin: "kotlin"
@@ -382,10 +316,7 @@ project(":core"){
 
     afterEvaluate{
         task mergedJavadoc(type: Javadoc){
-            def blacklist = [project(":ios"), project(":desktop"), project(":server"), project(":annotations")]
-            if(findProject(":android") != null){
-                blacklist += project(":android")
-            }
+            def blacklist = [project(":server"), project(":annotations")]
 
             source rootProject.subprojects.collect{ project ->
                 if(!blacklist.contains(project) && project.hasProperty("sourceSets")){
@@ -461,7 +392,7 @@ project(":annotations"){
     }
 }
 
-configure([":core", ":desktop", ":server", ":tools"].collect{project(it)}){
+configure([":server", ":tools"].collect{project(it)}){
     java{
         withJavadocJar()
         withSourcesJar()
@@ -489,13 +420,8 @@ task deployAll{
     }
 
     dependsOn cleanDeployOutput
-    dependsOn "desktop:packrLinux64"
-    dependsOn "desktop:packrWindows64"
-    dependsOn "desktop:packrWindows32"
-    dependsOn "desktop:packrMacOS"
     if(versionModifier != "steam"){
         dependsOn "server:deploy"
-        dependsOn "android:deploy"
     }
 }
 
