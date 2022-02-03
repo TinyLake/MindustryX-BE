@@ -6,7 +6,7 @@ import mindustry.game.*;
 import mindustry.gen.*;
 import mindustry.world.blocks.storage.CoreBlock.*;
 
-import static mindustry.Vars.*;
+import static mindustry.Vars.state;
 
 @Component
 abstract class TeamComp implements Posc{
@@ -20,6 +20,9 @@ abstract class TeamComp implements Posc{
 
     @Nullable
     public CoreBuild core(){
+        //noinspection RedundantCast
+        if(((Teamc)this) instanceof Unitc u && u.isPlayer())
+            return u.getPlayer().core();
         return team.core();
     }
 

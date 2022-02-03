@@ -63,7 +63,7 @@ abstract class PlayerComp implements UnitController, Entityc, Syncc, Timerc, Dra
     /** @return largest/closest core, with largest cores getting priority */
     @Nullable
     public CoreBuild bestCore(){
-        if(lastSpawn != null && lastSpawn.isValid())
+        if(lastSpawn != null)
             return lastSpawn;
         return team.cores().min(Structs.comps(Structs.comparingInt(c -> -c.block.size), Structs.comparingFloat(c -> c.dst(x, y))));
     }
@@ -81,6 +81,7 @@ abstract class PlayerComp implements UnitController, Entityc, Syncc, Timerc, Dra
 
     public void reset(){
         team = state.rules.defaultTeam;
+        lastSpawn = null;
         admin = typing = false;
         textFadeTime = 0f;
         x = y = 0f;
@@ -140,6 +141,8 @@ abstract class PlayerComp implements UnitController, Entityc, Syncc, Timerc, Dra
         if(!unit.isValid()){
             clearUnit();
         }
+        if(lastSpawn != null && (!lastSpawn.isValid() || lastSpawn.team != team))
+            lastSpawn = null;
 
         CoreBuild core;
 

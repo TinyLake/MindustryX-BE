@@ -26,6 +26,7 @@ import mindustry.ui.*;
 import mindustry.world.*;
 import mindustry.world.blocks.environment.*;
 import mindustry.world.blocks.payloads.*;
+import mindustry.world.blocks.storage.CoreBlock.*;
 
 import static mindustry.Vars.*;
 import static mindustry.logic.GlobalConstants.*;

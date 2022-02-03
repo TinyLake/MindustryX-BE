@@ -349,8 +349,8 @@ public class CoreBlock extends StorageBlock{
             tmp_queue.clear();
             if(state.rules.coreIsolation){
                 tmp_queue.add(this);
-                CoreBuild b;
-                while((b = tmp_queue.pop()) != null){
+                while(!tmp_queue.isEmpty()){
+                    var b = tmp_queue.pop();
                     b.proximity.each(it -> {
                         if(it instanceof CoreBuild build && it.team() == team && tmp_linkedCores.add(build))
                             tmp_queue.add(build);
