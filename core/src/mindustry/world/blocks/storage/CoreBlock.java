@@ -214,7 +214,7 @@ public class CoreBlock extends StorageBlock{
         }
 
         @Override
-        @Deprecated(forRemoval = true)
+        @Deprecated()
         public void damage(Team source, float damage){
             if(iframes > 0) return;
             if(source != null && source != team){
