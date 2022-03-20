@@ -2,6 +2,7 @@ package mindustry.net;
 
 import arc.*;
 import arc.struct.*;
+import arc.util.*;
 import arc.util.io.*;
 import arc.util.serialization.*;
 import mindustry.core.*;
@@ -46,6 +47,9 @@ public class Packets{
     /** Generic client connection event. */
     public static class Connect extends Packet{
         public String addressTCP;
+        /** Always null in server */
+        @Nullable
+        public String connectHost;
 
         @Override
         public int getPriority(){

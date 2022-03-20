@@ -43,7 +43,7 @@ public class NetClient implements ApplicationListener{
     private boolean connecting = false;
     /** If true, no message will be shown on disconnect. */
     private boolean quiet = false;
-    /** Whether to suppress disconnect events completely.*/
+    /** Whether to suppress disconnect events completely. */
     private boolean quietReset = false;
     /** Counter for data timeout. */
     private float timeoutTime = 0f;
@@ -61,7 +61,7 @@ public class NetClient implements ApplicationListener{
     public NetClient(){
 
         net.handleClient(Connect.class, packet -> {
-            Log.info("Connecting to server: @", packet.addressTCP);
+            Log.info("Connecting to server: @ | @", packet.connectHost, packet.addressTCP);
 
             player.admin = false;
 
@@ -94,7 +94,7 @@ public class NetClient implements ApplicationListener{
             c.mobile = mobile;
             c.versionType = Version.type;
             c.color = player.color.rgba();
-            c.usid = getUsid(packet.addressTCP);
+            c.usid = getUsid(packet.connectHost);
             c.uuid = platform.getUUID();
 
             if(c.uuid == null){
@@ -181,7 +181,7 @@ public class NetClient implements ApplicationListener{
 
         effect.at(x, y, rotation, color);
     }
-    
+
     @Remote(variants = Variant.both, unreliable = true)
     public static void effect(Effect effect, float x, float y, float rotation, Color color, Object data){
         if(effect == null) return;
@@ -540,7 +540,7 @@ public class NetClient implements ApplicationListener{
         net.disconnect();
     }
 
-    /** Disconnects, causing no further changes or reset.*/
+    /** Disconnects, causing no further changes or reset. */
     public void disconnectNoReset(){
         quiet = quietReset = true;
         net.disconnect();

@@ -10,6 +10,7 @@ import arc.util.*;
 import arc.util.Log.*;
 import arc.util.async.*;
 import arc.util.io.*;
+import mindustry.*;
 import mindustry.net.Administration.*;
 import mindustry.net.Net.*;
 import mindustry.net.Packets.*;
@@ -28,6 +29,7 @@ public class ArcNetProvider implements NetProvider{
     final Client client;
     final Prov<DatagramPacket> packetSupplier = () -> new DatagramPacket(new byte[512], 512);
     final AsyncExecutor executor = new AsyncExecutor(Math.max(Runtime.getRuntime().availableProcessors(), 6));
+    String connectHost;
 
     final Server server;
     final CopyOnWriteArrayList<ArcConnection> connections = new CopyOnWriteArrayList<>();
@@ -49,7 +51,9 @@ public class ArcNetProvider implements NetProvider{
             @Override
             public void connected(Connection connection){
                 Connect c = new Connect();
+                c.connectHost = connectHost;
                 c.addressTCP = connection.getRemoteAddressTCP().getAddress().getHostAddress();
+                // what is this if? always true or NPE above.
                 if(connection.getRemoteAddressTCP() != null) c.addressTCP = connection.getRemoteAddressTCP().toString();
 
                 Core.app.post(() -> net.handleClientReceived(c));
@@ -157,6 +161,8 @@ public class ArcNetProvider implements NetProvider{
 
     @Override
     public void connectClient(String ip, int port, Runnable success){
+        connectHost = (port == Vars.port) ? ip : (ip + ":" + port);
+        Log.info("Start connecting to server: @", connectHost);
         Threads.daemon(() -> {
             try{
                 //just in case
