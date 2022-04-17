@@ -479,6 +479,7 @@ public class Administration{
         autosaveAmount("The maximum amount of autosaves. Older ones get replaced.", 10),
         autosaveSpacing("Spacing between autosaves in seconds.", 60 * 5),
         ipForward("Support ip forward behind proxy(don't enable if no proxy).", false),
+        locale("Default locale in server", "default"),
         debug("Enable debug logging", false, () -> Log.level = debug() ? LogLevel.debug : LogLevel.info);
 
         public static final Config[] all = values();
