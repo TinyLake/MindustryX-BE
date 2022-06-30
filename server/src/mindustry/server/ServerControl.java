@@ -36,7 +36,7 @@ import static mindustry.Vars.*;
 
 public class ServerControl implements ApplicationListener{
     private static final int roundExtraTime = 12;
-    private static final int maxLogLength = 1024 * 512;
+    private static final int maxLogLength = 1024 * 1024 * 5;
 
     protected static String[] tags = {"&lc&fb[D]&fr", "&lb&fb[I]&fr", "&ly&fb[W]&fr", "&lr&fb[E]", ""};
     protected static DateTimeFormatter dateTime = DateTimeFormatter.ofPattern("MM-dd-yyyy HH:mm:ss"),
@@ -54,7 +54,7 @@ public class ServerControl implements ApplicationListener{
     };
 
     private Fi currentLogFile;
-    private boolean inExtraRound;
+    private boolean inGameOverWait;
     private Task lastTask;
     private Gamemode lastMode;
     private @Nullable Map nextMapOverride;
@@ -168,7 +168,7 @@ public class ServerControl implements ApplicationListener{
         }
 
         Events.on(GameOverEvent.class, event -> {
-            if(inExtraRound) return;
+            if(inGameOverWait) return;
             if(state.rules.waves){
                 info("Game over! Reached wave @ with @ players online on map @.", state.wave, Groups.player.size(), Strings.capitalize(Strings.stripColors(state.map.name())));
             }else{
@@ -572,17 +572,18 @@ public class ServerControl implements ApplicationListener{
             if(arg.length == 0){
                 info("All config values:");
                 for(Config c : Config.all){
-                    info("&lk| @: @", c.name(), "&lc&fi" + c.get());
+                    info("&lk| @: @", c.name, "&lc&fi" + c.get());
                     info("&lk| | &lw" + c.description);
                     info("&lk|");
                 }
                 return;
             }
 
-            try{
-                Config c = Config.valueOf(arg[0]);
+            Config c = Config.all.find(conf -> conf.name.equalsIgnoreCase(arg[0]));
+
+            if(c != null){
                 if(arg.length == 1){
-                    info("'@' is currently @.", c.name(), c.get());
+                    info("'@' is currently @.", c.name, c.get());
                 }else{
                     if(arg[1].equals("default")){
                         c.set(c.defaultValue);
@@ -599,10 +600,10 @@ public class ServerControl implements ApplicationListener{
                         c.set(arg[1].replace("\\n", "\n"));
                     }
 
-                    info("@ set to @.", c.name(), c.get());
+                    info("@ set to @.", c.name, c.get());
                     Core.settings.forceSave();
                 }
-            }catch(IllegalArgumentException e){
+            }else{
                 err("Unknown config: '@'. Run the command with no arguments to get a list of valid configs.", arg[0]);
             }
         });
@@ -783,6 +784,7 @@ public class ServerControl implements ApplicationListener{
 
             if(info != null){
                 info.lastKicked = 0;
+                netServer.admins.kickedIPs.remove(info.lastIP);
                 info("Pardoned player: @", info.plainLastName());
             }else{
                 err("That ID can't be found.");
@@ -813,7 +815,7 @@ public class ServerControl implements ApplicationListener{
 
             if(target != null){
                 if(add){
-                    netServer.admins.adminPlayer(target.id, target.adminUsid);
+                    netServer.admins.adminPlayer(target.id, playert == null ? target.adminUsid : playert.usid());
                 }else{
                     netServer.admins.unAdminPlayer(target.id);
                 }
@@ -914,8 +916,8 @@ public class ServerControl implements ApplicationListener{
             }
 
             info("Core destroyed.");
-            inExtraRound = false;
-            Events.fire(new GameOverEvent(Team.crux));
+            inGameOverWait = false;
+            Events.fire(new GameOverEvent(state.rules.waveTeam));
         });
 
         handler.register("info", "<IP/UUID/name...>", "Find player info(s). Can optionally check for all names or IPs a player has had.", arg -> {
@@ -1002,8 +1004,12 @@ public class ServerControl implements ApplicationListener{
         }
     }
 
+    public void setNextMap(Map map){
+        nextMapOverride = map;
+    }
+
     private void play(boolean wait, Runnable run){
-        inExtraRound = true;
+        inGameOverWait = true;
         Runnable r = () -> {
             WorldReloader reloader = new WorldReloader();
 
@@ -1015,7 +1021,7 @@ public class ServerControl implements ApplicationListener{
             logic.play();
 
             reloader.end();
-            inExtraRound = false;
+            inGameOverWait = false;
         };
 
         if(wait){

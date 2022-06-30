@@ -14,8 +14,8 @@ import mindustry.annotations.Annotations.*;
 import mindustry.content.*;
 import mindustry.core.GameState.*;
 import mindustry.entities.units.*;
-import mindustry.game.EventType.*;
 import mindustry.game.*;
+import mindustry.game.EventType.*;
 import mindustry.game.Teams.*;
 import mindustry.gen.*;
 import mindustry.graphics.*;
@@ -35,10 +35,13 @@ import static mindustry.Vars.*;
 
 public class NetServer implements ApplicationListener{
     /** note that snapshots are compressed, so the max snapshot size here is above the typical UDP safe limit */
-    private static final int maxSnapshotSize = 800, timerBlockSync = 0, serverSyncTime = 200;
-    private static final float blockSyncTime = 60 * 6;
+    private static final int maxSnapshotSize = 800;
+    private static final int timerBlockSync = 0, timerHealthSync = 1;
+    private static final float blockSyncTime = 60 * 6, healthSyncTime = 30;
     private static final FloatBuffer fbuffer = FloatBuffer.allocate(20);
     private static final Writes dataWrites = new Writes(null);
+    private static final IntSeq hiddenIds = new IntSeq();
+    private static final IntSeq healthSeq = new IntSeq(maxSnapshotSize / 4 + 1);
     private static final Vec2 vector = new Vec2();
     /** If a player goes away of their server-side coordinates by this distance, they get teleported back. */
     private static final float correctDist = tilesize * 14f;
@@ -94,7 +97,8 @@ public class NetServer implements ApplicationListener{
     };
 
     private boolean closing = false;
-    private Interval timer = new Interval();
+    private Interval timer = new Interval(10);
+    private IntSet buildHealthChanged = new IntSet();
 
     private ReusableByteOutStream writeBuffer = new ReusableByteOutStream(127);
     private Writes outputBuffer = new Writes(new DataOutputStream(writeBuffer));
@@ -218,6 +222,7 @@ public class NetServer implements ApplicationListener{
                 }
 
                 if(Groups.player.contains(player -> player.uuid().equals(packet.uuid) || player.usid().equals(packet.usid))){
+                    con.uuid = packet.uuid;
                     con.kick(KickReason.idInUse);
                     return;
                 }
@@ -504,10 +509,6 @@ public class NetServer implements ApplicationListener{
                     return;
                 }
 
-                if(!player.dead() && player.unit().isCommanding()){
-                    player.unit().clearCommand();
-                }
-
                 player.getInfo().lastSyncTime = Time.millis();
                 Call.worldDataBegin(player.con);
                 netServer.sendWorldData(player);
@@ -630,7 +631,7 @@ public class NetServer implements ApplicationListener{
         float xVelocity, float yVelocity,
         Tile mining,
         boolean boosting, boolean shooting, boolean chatting, boolean building,
-        @Nullable BuildPlan[] requests,
+        @Nullable Queue<BuildPlan> plans,
         float viewX, float viewY, float viewWidth, float viewHeight
     ){
         NetConnection con = player.con;
@@ -677,8 +678,8 @@ public class NetServer implements ApplicationListener{
             player.unit().clearBuilding();
             player.unit().updateBuilding(building);
 
-            if(requests != null){
-                for(BuildPlan req : requests){
+            if(plans != null){
+                for(BuildPlan req : plans){
                     if(req == null) continue;
                     Tile tile = world.tile(req.x, req.y);
                     if(tile == null || (!req.breaking && req.block == null)) continue;
@@ -868,13 +869,19 @@ public class NetServer implements ApplicationListener{
         }
     }
 
+    //TODO I don't like where this is, move somewhere else?
+    /** Queues a building health update. This will be sent in a Call.buildHealthUpdate packet later. */
+    public void buildHealthUpdate(Building build){
+        buildHealthChanged.add(build.pos());
+    }
+
     /** Should only be used on the headless backend. */
     public void openServer(){
         try{
             net.host(Config.port.num());
             info("Opened a server on port @.", Config.port.num());
         }catch(BindException e){
-            err("Unable to host: Port already in use! Make sure no other servers are running on the same port in your network.");
+            err("Unable to host: Port " + Config.port.num() + " already in use! Make sure no other servers are running on the same port in your network.");
             state.set(State.menu);
         }catch(IOException e){
             err(e);
@@ -935,13 +942,20 @@ public class NetServer implements ApplicationListener{
 
         //write basic state data.
         Call.stateSnapshot(player.con, state.wavetime, state.wave, state.enemies, state.serverPaused, state.gameOver,
-        universe.seconds(), tps, GlobalConstants.rand.seed0, GlobalConstants.rand.seed1, syncStream.toByteArray());
+        universe.seconds(), tps, GlobalVars.rand.seed0, GlobalVars.rand.seed1, syncStream.toByteArray());
 
         syncStream.reset();
 
+        hiddenIds.clear();
         int sent = 0;
 
         for(Syncc entity : Groups.sync){
+            //TODO write to special list
+            if(entity.isSyncHidden(player)){
+                hiddenIds.add(entity.id());
+                continue;
+            }
+
             //write all entities now
             dataStream.writeInt(entity.id()); //write id
             dataStream.writeByte(entity.classId()); //write type ID
@@ -961,6 +975,10 @@ public class NetServer implements ApplicationListener{
             dataStream.close();
 
             Call.entitySnapshot(player.con, (short)sent, syncStream.toByteArray());
+        }
+
+        if(hiddenIds.size > 0){
+            Call.hiddenSnapshot(player.con, hiddenIds);
         }
 
         player.con.snapshotsSent++;
@@ -990,20 +1008,20 @@ public class NetServer implements ApplicationListener{
         return result.toString();
     }
 
-    String checkColor(String str){
+    static String checkColor(String str){
         for(int i = 1; i < str.length(); i++){
             if(str.charAt(i) == ']'){
                 String color = str.substring(1, i);
 
                 if(Colors.get(color.toUpperCase()) != null || Colors.get(color.toLowerCase()) != null){
                     Color result = (Colors.get(color.toLowerCase()) == null ? Colors.get(color.toUpperCase()) : Colors.get(color.toLowerCase()));
-                    if(result.a <= 0.8f){
+                    if(result.a < 1f){
                         return str.substring(i + 1);
                     }
                 }else{
                     try{
                         Color result = Color.valueOf(color);
-                        if(result.a <= 0.8f){
+                        if(result.a < 1f){
                             return str.substring(i + 1);
                         }
                     }catch(Exception e){
@@ -1017,6 +1035,7 @@ public class NetServer implements ApplicationListener{
 
     void sync(){
         try{
+            int interval = Config.snapshotInterval.num();
             Groups.player.each(p -> !p.isLocal(), player -> {
                 if(player.con == null || !player.con.isConnected()){
                     onDisconnect(player, "disappeared");
@@ -1025,7 +1044,7 @@ public class NetServer implements ApplicationListener{
 
                 var connection = player.con;
 
-                if(Time.timeSinceMillis(connection.syncTime) < serverSyncTime || !connection.hasConnected) return;
+                if(Time.timeSinceMillis(connection.syncTime) < interval || !connection.hasConnected) return;
 
                 connection.syncTime = Time.millis();
 
@@ -1040,6 +1059,33 @@ public class NetServer implements ApplicationListener{
                 writeBlockSnapshots();
             }
 
+            if(Groups.player.size() > 0 && buildHealthChanged.size > 0 && timer.get(timerHealthSync, healthSyncTime)){
+                healthSeq.clear();
+
+                var iter = buildHealthChanged.iterator();
+                while(iter.hasNext){
+                    int next = iter.next();
+                    var build = world.build(next);
+
+                    //pack pos + health into update list
+                    if(build != null){
+                        healthSeq.add(next, Float.floatToRawIntBits(build.health));
+                    }
+
+                    //if size exceeds snapshot limit, send it out and begin building it up again
+                    if(healthSeq.size * 4 >= maxSnapshotSize){
+                        Call.buildHealthUpdate(healthSeq);
+                        healthSeq.clear();
+                    }
+                }
+
+                //send any residual health updates
+                if(healthSeq.size > 0){
+                    Call.buildHealthUpdate(healthSeq);
+                }
+
+                buildHealthChanged.clear();
+            }
         }catch(IOException e){
             Log.err(e);
         }

@@ -1,5 +1,6 @@
 package mindustry.io;
 
+import arc.graphics.*;
 import arc.util.*;
 import arc.util.serialization.*;
 import arc.util.serialization.Json.*;
@@ -71,6 +72,23 @@ public class JsonIO{
     static void apply(Json json){
         json.setElementType(Rules.class, "spawns", SpawnGroup.class);
         json.setElementType(Rules.class, "loadout", ItemStack.class);
+
+        json.setSerializer(Color.class, new Serializer<>(){
+            @Override
+            public void write(Json json, Color object, Class knownType){
+                json.writeValue(object.toString());
+            }
+
+            @Override
+            public Color read(Json json, JsonValue jsonData, Class type){
+                if(jsonData.isString()){
+                    return Color.valueOf(jsonData.asString());
+                }
+                Color out = new Color();
+                json.readFields(out, jsonData);
+                return out;
+            }
+        });
 
         json.setSerializer(Sector.class, new Serializer<>(){
             @Override
@@ -225,10 +243,10 @@ public class JsonIO{
             public UnlockableContent read(Json json, JsonValue jsonData, Class type){
                 if(jsonData.isNull()) return null;
                 String str = jsonData.asString();
-                Item item = Vars.content.getByName(ContentType.item, str);
-                Liquid liquid = Vars.content.getByName(ContentType.liquid, str);
-                Block block = Vars.content.getByName(ContentType.block, str);
-                UnitType unit = Vars.content.getByName(ContentType.unit, str);
+                Item item = Vars.content.item(str);
+                Liquid liquid = Vars.content.liquid(str);
+                Block block = Vars.content.block(str);
+                UnitType unit = Vars.content.unit(str);
                 return
                     item != null ? item :
                     liquid != null ? liquid :
@@ -241,6 +259,18 @@ public class JsonIO{
         for(var filter : Maps.allFilterTypes){
             var i = filter.get();
             json.addClassTag(Strings.camelize(i.getClass().getSimpleName().replace("Filter", "")), i.getClass());
+        }
+
+        //use short names for all objective types
+        for(var obj : MapObjectives.allObjectiveTypes){
+            var i = obj.get();
+            json.addClassTag(Strings.camelize(i.getClass().getSimpleName().replace("Objective", "")), i.getClass());
+        }
+
+        //use short names for all marker types
+        for(var obj : MapObjectives.allMarkerTypes){
+            var i = obj.get();
+            json.addClassTag(Strings.camelize(i.getClass().getSimpleName().replace("Marker", "")), i.getClass());
         }
     }
 
